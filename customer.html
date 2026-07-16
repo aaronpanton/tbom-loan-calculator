@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TBOM Loan Summary</title>
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --brand:#007A3E;--brand-mid:#005C2E;--brand-light:#e6f4ed;
+  --accent:#FFC000;--accent-light:#fff8e1;
+  --text-primary:#1a1a1a;--text-secondary:#44546A;--text-muted:#6b7280;
+  --bg-page:#f2f5f3;--bg-card:#fff;--bg-subtle:#f7faf8;
+  --border:#d9e6de;--border-strong:#b8d4c2;
+  --danger:#c0392b;
+  --shadow-md:0 4px 16px rgba(0,0,0,.10),0 2px 6px rgba(0,0,0,.06);
+  --radius:12px;
+}
+body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.6;color:var(--text-primary);background:var(--bg-page);min-height:100vh}
+
+/* ===== SCREEN HEADER ===== */
+.screen-header{background:var(--brand-mid);color:#fff;padding:0 2rem;box-shadow:0 2px 8px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:space-between;height:64px}
+.logo{display:flex;align-items:center;gap:.6rem;font-size:1.1rem;font-weight:700}
+.logo-icon{width:34px;height:34px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center}
+.logo-icon i{color:#1a1a1a;width:18px;height:18px}
+.header-actions{display:flex;gap:.75rem;align-items:center}
+
+/* ===== SETUP PANEL ===== */
+.setup-bar{background:var(--bg-card);border-bottom:1px solid var(--border);padding:.9rem 2rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap}
+.setup-bar label{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);margin-bottom:.2rem;display:block}
+.setup-field{display:flex;flex-direction:column}
+.setup-field input{padding:.45rem .8rem;border:1.5px solid var(--border-strong);border-radius:7px;font-size:.9rem;color:var(--text-primary);background:var(--bg-subtle);outline:none;width:220px;transition:border-color .2s,box-shadow .2s}
+.setup-field input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(0,122,62,.1);background:#fff}
+.setup-divider{width:1px;height:48px;background:var(--border);flex-shrink:0}
+.setup-hint{font-size:.78rem;color:var(--text-muted);flex:1}
+
+/* ===== BUTTONS ===== */
+.btn{display:inline-flex;align-items:center;gap:.45rem;padding:.6rem 1.1rem;font-size:.87rem;font-weight:700;border:none;border-radius:8px;cursor:pointer;transition:all .2s;letter-spacing:.02em;text-decoration:none}
+.btn-primary{background:var(--brand);color:#fff;box-shadow:0 3px 10px rgba(0,122,62,.3)}
+.btn-primary:hover{background:var(--brand-mid);transform:translateY(-1px)}
+.btn-outline{background:transparent;color:var(--brand);border:1.5px solid var(--brand)}
+.btn-outline:hover{background:var(--brand-light)}
+.btn-ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);font-size:.82rem;padding:.45rem .9rem}
+.btn-ghost:hover{background:rgba(255,255,255,.25)}
+.btn-print{background:var(--accent);color:#1a1a1a;box-shadow:0 3px 10px rgba(255,192,0,.3)}
+.btn-print:hover{background:#e6ac00;transform:translateY(-1px)}
+
+/* ===== MAIN ===== */
+.main{max-width:900px;margin:1.5rem auto 3rem;padding:0 1.5rem}
+
+/* ===== REPORT CONTAINER ===== */
+#report{background:var(--bg-card);border-radius:var(--radius);box-shadow:var(--shadow-md);overflow:hidden}
+
+/* REPORT HEADER */
+.report-header{background:linear-gradient(135deg,#005C2E 0%,#007A3E 100%);color:#fff;padding:2rem 2.5rem}
+.report-header-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.25rem}
+.report-logo{display:flex;align-items:center;gap:.65rem}
+.report-logo-icon{width:44px;height:44px;background:var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.report-logo-icon i{color:#1a1a1a;width:24px;height:24px}
+.report-logo-text{font-size:1.15rem;font-weight:800;letter-spacing:.01em}
+.report-logo-sub{font-size:.72rem;opacity:.75;margin-top:.1rem}
+.report-date{text-align:right;font-size:.78rem;opacity:.7}
+.report-title{font-size:1.5rem;font-weight:800;letter-spacing:-.01em;margin-bottom:.25rem}
+.report-subtitle{font-size:.88rem;opacity:.8}
+.report-names{display:flex;gap:2rem;margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid rgba(255,255,255,.2)}
+.report-name-item .rn-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;opacity:.65;margin-bottom:.2rem}
+.report-name-item .rn-value{font-size:1.05rem;font-weight:700}
+
+/* REPORT BODY */
+.report-body{padding:2rem 2.5rem}
+
+/* KEY METRICS GRID */
+.metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.75rem}
+.metric-card{background:var(--bg-subtle);border:1px solid var(--border);border-radius:9px;padding:.9rem 1rem;text-align:center}
+.metric-card.highlight{background:linear-gradient(135deg,#005C2E,#007A3E);color:#fff;border-color:transparent}
+.metric-card.highlight .mc-label{color:rgba(255,255,255,.75)}
+.mc-label{font-size:.67rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin-bottom:.3rem}
+.mc-value{font-size:1.35rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--text-primary)}
+.metric-card.highlight .mc-value{color:#fff}
+.mc-sub{font-size:.67rem;color:var(--text-muted);margin-top:.15rem}
+.metric-card.highlight .mc-sub{color:rgba(255,255,255,.6)}
+
+/* SECTION TITLES */
+.section-title{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--brand);margin-bottom:.75rem;display:flex;align-items:center;gap:.45rem;border-bottom:2px solid var(--brand-light);padding-bottom:.45rem}
+.section-title i{width:14px;height:14px}
+
+/* LOAN DETAIL TABLE */
+.detail-table{width:100%;border-collapse:collapse;margin-bottom:1.75rem;font-size:.87rem}
+.detail-table td{padding:.55rem .75rem;border-bottom:1px solid var(--border)}
+.detail-table tr:last-child td{border-bottom:none}
+.detail-table td:first-child{color:var(--text-muted);width:45%;font-weight:500}
+.detail-table td:last-child{font-weight:600;text-align:right;color:var(--text-primary)}
+.detail-table tr.highlight-row td{background:var(--brand-light);color:var(--brand)}
+.detail-table tr.highlight-row td:last-child{color:var(--brand);font-size:1.05rem}
+
+/* BALLOON BOX */
+.balloon-box{background:var(--accent-light);border:1.5px solid var(--accent);border-radius:9px;padding:.9rem 1.1rem;margin-bottom:1.75rem;display:flex;align-items:flex-start;gap:.75rem}
+.balloon-box i{color:#8a5b00;width:20px;height:20px;flex-shrink:0;margin-top:.1rem}
+.balloon-box-text{font-size:.85rem;color:#5a3a00}
+.balloon-box-text strong{display:block;font-size:.95rem;color:#3a2400;margin-bottom:.2rem}
+
+/* EXTRA PAYMENT BOX */
+.extra-box{background:var(--brand-light);border:1.5px solid var(--brand);border-radius:9px;padding:.9rem 1.1rem;margin-bottom:1.75rem;display:flex;align-items:flex-start;gap:.75rem}
+.extra-box i{color:var(--brand);width:20px;height:20px;flex-shrink:0;margin-top:.1rem}
+.extra-box-text{font-size:.85rem;color:var(--brand-mid)}
+.extra-box-text strong{display:block;font-size:.95rem;color:var(--brand-mid);margin-bottom:.2rem}
+
+/* SAVINGS TABLE */
+.savings-row{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1.75rem}
+.savings-stat{background:var(--bg-subtle);border:1px solid var(--border);border-radius:8px;padding:.7rem .9rem}
+.savings-stat .s-label{font-size:.67rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:.15rem}
+.savings-stat .s-value{font-size:1.1rem;font-weight:700;color:var(--brand)}
+
+/* AMORT TABLE */
+.amort-table-wrap{border:1px solid var(--border);border-radius:9px;overflow:hidden;margin-bottom:1.75rem;max-height:480px;overflow-y:auto}
+.amort-table{width:100%;border-collapse:collapse;font-size:.78rem;font-variant-numeric:tabular-nums}
+.amort-table thead{position:sticky;top:0;z-index:1}
+.amort-table th{background:var(--brand);color:#fff;font-weight:600;padding:.5rem .7rem;text-align:right;font-size:.67rem;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.amort-table th:first-child{text-align:left}
+.amort-table td{padding:.42rem .7rem;border-bottom:1px solid var(--border);text-align:right;color:var(--text-secondary)}
+.amort-table td:first-child{text-align:left;color:var(--text-muted);font-weight:600}
+.amort-table tr.year-row td{background:var(--brand);color:#fff;font-weight:700;font-size:.67rem;text-transform:uppercase;letter-spacing:.05em;border-top:2px solid var(--brand-mid)}
+.amort-table tr.row-even td{background:#f9fafb}
+.amort-table tr.balloon-row td{background:#fff8e1;font-weight:700;color:#8a5b00;border-top:2px solid var(--accent)}
+.p-col{color:var(--brand)!important;font-weight:600!important}
+.i-col{color:var(--danger)!important}
+.cp-col{color:#005C2E!important;font-style:italic}
+.ci-col{color:#a93226!important;font-style:italic}
+
+/* CHARTS ROW */
+.charts-row{display:grid;grid-template-columns:180px 1fr;gap:1.5rem;margin-bottom:1.75rem;align-items:center}
+.pie-wrap{display:flex;flex-direction:column;align-items:center;gap:.75rem}
+.pie-legend{font-size:.76rem;width:100%}
+.pie-legend-item{display:flex;align-items:center;gap:.45rem;margin-bottom:.35rem}
+.pie-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.pie-legend-val{font-weight:700;margin-left:auto;font-variant-numeric:tabular-nums}
+.bar-wrap{overflow-x:auto}
+
+/* DISCLOSURE */
+.disclosure{background:var(--bg-subtle);border-top:1px solid var(--border);padding:1.25rem 2.5rem;font-size:.72rem;color:var(--text-muted);line-height:1.6}
+.disclosure strong{color:var(--text-secondary)}
+
+/* FOOTER STRIP */
+.report-footer{background:var(--brand-mid);color:#fff;padding:.9rem 2.5rem;display:flex;align-items:center;justify-content:space-between;font-size:.75rem}
+.report-footer a{color:rgba(255,255,255,.7);text-decoration:none}
+
+/* ===== PRINT ===== */
+@media print{
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  body{background:#fff;font-size:9pt;margin:0;padding:0}
+  .screen-header,.setup-bar,.header-actions,.no-print{display:none!important}
+  .main{max-width:100%;margin:0;padding:0}
+  #report{box-shadow:none;border-radius:0}
+  .report-header{padding:0.8rem 1.1rem}
+  .report-header-top{margin-bottom:0.6rem}
+  .report-logo-icon{width:34px;height:34px}
+  .report-logo-text{font-size:.95rem}
+  .report-title{font-size:1.1rem}
+  .report-subtitle{font-size:.75rem}
+  .report-names{margin-top:0.6rem;padding-top:0.6rem;gap:1.2rem}
+  .rn-value{font-size:.9rem}
+  .report-body{padding:0.7rem 1.1rem}
+  .metrics-grid{grid-template-columns:repeat(4,1fr);gap:0.45rem;margin-bottom:0.7rem}
+  .metric-card{padding:0.45rem 0.6rem}
+  .mc-value{font-size:1rem}
+  .mc-label{font-size:.6rem}
+  .mc-sub{font-size:.6rem}
+  .section-title{font-size:.7rem;margin-bottom:0.35rem;padding-bottom:0.25rem}
+  .detail-table td{padding:0.28rem 0.55rem;font-size:.78rem}
+  .charts-row{grid-template-columns:140px 1fr;gap:1rem;margin-bottom:0.7rem;padding:0.5rem 0}
+  canvas#rptPie{width:120px!important;height:120px!important}
+  .pie-legend{font-size:.7rem}
+  .savings-row{grid-template-columns:repeat(4,1fr);gap:0.4rem;margin-bottom:0.7rem}
+  .savings-stat{padding:0.4rem 0.6rem}
+  .savings-stat .s-value{font-size:.9rem}
+  .balloon-box,.extra-box{padding:0.5rem 0.7rem;margin-bottom:0.7rem}
+  .balloon-box-text,.extra-box-text{font-size:.75rem}
+  .amort-table-wrap{max-height:none;overflow:visible;border-radius:0}
+  .amort-table-wrap{page-break-inside:auto}
+  .amort-table tr{page-break-inside:avoid}
+  .amort-table th{font-size:.65rem;padding:0.3rem 0.45rem}
+  .amort-table td{font-size:.68rem;padding:0.25rem 0.45rem}
+  .disclosure{padding:0.5rem 1.1rem;font-size:.62rem;line-height:1.4}
+  .report-footer{padding:0.45rem 1.1rem;font-size:.68rem}
+  h2,h3{page-break-after:avoid}
+  .section-title{page-break-after:avoid}
+  @page{margin:0.4in 0.45in 0.4in 0.45in;size:letter portrait}
+}
+@media screen{
+  .print-only{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- SCREEN HEADER -->
+<div class="screen-header no-print">
+  <div class="logo">
+    <div class="logo-icon"><i data-lucide="landmark"></i></div>
+    TBOM Loan Calculator
+  </div>
+  <div class="header-actions">
+    <a href="index.html" class="btn btn-ghost"><i data-lucide="arrow-left"></i> Back to Calculator</a>
+    <button class="btn btn-print" onclick="window.print()"><i data-lucide="printer"></i> Print Report</button>
+  </div>
+</div>
+
+<!-- SETUP BAR -->
+<div class="setup-bar no-print">
+  <div class="setup-field">
+    <label>Customer Name</label>
+    <input type="text" id="customerName" placeholder="John & Jane Smith" oninput="updateReport()">
+  </div>
+  <div class="setup-divider"></div>
+  <div class="setup-field">
+    <label>Lender / Officer Name</label>
+    <input type="text" id="lenderName" placeholder="Aaron Panton" oninput="updateReport()">
+  </div>
+  <div class="setup-divider"></div>
+  <div class="setup-field">
+    <label>Loan Purpose</label>
+    <input type="text" id="loanPurpose" placeholder="Commercial Real Estate" oninput="updateReport()">
+  </div>
+  <div class="setup-hint">
+    <i data-lucide="info" style="width:13px;height:13px;vertical-align:middle;margin-right:4px;color:var(--brand)"></i>
+    Loan data is carried over from the calculator. Fill in the fields above, then print.
+  </div>
+</div>
+
+<!-- REPORT -->
+<div class="main">
+<div id="report">
+
+  <!-- REPORT HEADER -->
+  <div class="report-header">
+    <div class="report-header-top">
+      <div class="report-logo">
+        <div class="report-logo-icon"><i data-lucide="landmark"></i></div>
+        <div>
+          <div class="report-logo-text">The Bank of Missouri</div>
+          <div class="report-logo-sub">Loan Summary Report</div>
+        </div>
+      </div>
+      <div class="report-date">
+        <div id="reportDate"></div>
+        <div style="margin-top:.3rem;font-size:.7rem;opacity:.6">CONFIDENTIAL</div>
+      </div>
+    </div>
+    <div class="report-title">Loan Payment Summary</div>
+    <div class="report-subtitle" id="reportPurposeSubtitle">Review your estimated payment schedule and loan details below.</div>
+    <div class="report-names">
+      <div class="report-name-item">
+        <div class="rn-label">Prepared For</div>
+        <div class="rn-value" id="displayCustomer">—</div>
+      </div>
+      <div class="report-name-item">
+        <div class="rn-label">Prepared By</div>
+        <div class="rn-value" id="displayLender">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REPORT BODY -->
+  <div class="report-body">
+
+    <!-- KEY METRICS -->
+    <div class="metrics-grid">
+      <div class="metric-card highlight">
+        <div class="mc-label">Monthly Payment</div>
+        <div class="mc-value" id="mPayment">—</div>
+        <div class="mc-sub">Principal + Interest</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label">Loan Amount</div>
+        <div class="mc-value" id="mLoan">—</div>
+        <div class="mc-sub">&nbsp;</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label">Total Interest</div>
+        <div class="mc-value" id="mInterest" style="color:var(--danger)">—</div>
+        <div class="mc-sub" id="mInterestPct">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="mc-label">Total Cost</div>
+        <div class="mc-value" id="mTotal">—</div>
+        <div class="mc-sub" id="mTerm">—</div>
+      </div>
+    </div>
+
+    <!-- LOAN DETAILS -->
+    <div class="section-title"><i data-lucide="file-text"></i>Loan Details</div>
+    <table class="detail-table" id="detailTable">
+      <tbody></tbody>
+    </table>
+
+    <!-- BALLOON BOX -->
+    <div class="balloon-box" id="balloonBox" style="display:none">
+      <i data-lucide="alert-circle"></i>
+      <div class="balloon-box-text">
+        <strong id="balloonBoxTitle">Balloon Payment Due</strong>
+        <span id="balloonBoxBody"></span>
+      </div>
+    </div>
+
+    <!-- EXTRA PAYMENT BOX -->
+    <div class="extra-box" id="extraBox" style="display:none">
+      <i data-lucide="trending-up"></i>
+      <div class="extra-box-text">
+        <strong id="extraBoxTitle">Extra Payment Applied</strong>
+        <span id="extraBoxBody"></span>
+      </div>
+    </div>
+
+    <!-- SAVINGS ROW -->
+    <div id="savingsSection" style="display:none">
+      <div class="section-title"><i data-lucide="trending-down"></i>Extra Payment Savings</div>
+      <div class="savings-row">
+        <div class="savings-stat"><div class="s-label">Interest Saved</div><div class="s-value" id="psSaved">—</div></div>
+        <div class="savings-stat"><div class="s-label">Months Saved</div><div class="s-value" id="psMonths">—</div></div>
+        <div class="savings-stat"><div class="s-label">New Payoff</div><div class="s-value" id="psPayoff">—</div></div>
+        <div class="savings-stat"><div class="s-label">Total Paid</div><div class="s-value" id="psTotal">—</div></div>
+      </div>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="section-title"><i data-lucide="pie-chart"></i>Payment Breakdown</div>
+    <div class="charts-row">
+      <div class="pie-wrap">
+        <canvas id="rptPie" width="160" height="160"></canvas>
+        <div class="pie-legend">
+          <div class="pie-legend-item"><div class="pie-dot" style="background:var(--brand)"></div><span>Principal</span><span class="pie-legend-val" id="pieLegP">—</span></div>
+          <div class="pie-legend-item"><div class="pie-dot" style="background:var(--danger)"></div><span>Interest</span><span class="pie-legend-val" id="pieLegI">—</span></div>
+        </div>
+      </div>
+      <div class="bar-wrap">
+        <canvas id="rptBar" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- AMORTIZATION -->
+    <div class="section-title"><i data-lucide="table"></i>Amortization Schedule</div>
+    <div class="amort-table-wrap">
+      <table class="amort-table">
+        <thead>
+          <tr>
+            <th>Payment Date</th><th>Payment</th><th>Principal</th><th>Interest</th>
+            <th>Cum. Principal</th><th>Cum. Interest</th><th>Balance</th>
+          </tr>
+        </thead>
+        <tbody id="rptAmortBody"></tbody>
+      </table>
+    </div>
+
+  </div><!-- end report-body -->
+
+  <!-- DISCLOSURE -->
+  <div class="disclosure">
+    <strong>Important Disclosure:</strong> This loan summary is provided for estimation and illustration purposes only and does not constitute a loan commitment, offer, or guarantee of credit. 
+    Actual loan terms, rates, and payments are subject to credit approval, underwriting review, and may vary based on market conditions, collateral valuation, and borrower qualifications. 
+    Payments shown are principal and interest only and do not include taxes, insurance, escrow, or other fees. 
+    <strong>The Bank of Missouri</strong> — Equal Housing Lender. Member FDIC.
+  </div>
+
+  <!-- REPORT FOOTER -->
+  <div class="report-footer">
+    <span>The Bank of Missouri &nbsp;|&nbsp; TBOM Loan Calculator</span>
+    <span id="footerLender"></span>
+    <span>For informational purposes only</span>
+  </div>
+
+</div><!-- end report -->
+</div><!-- end main -->
+
+<script>
+/* ============================================================
+   HELPERS
+============================================================ */
+function fmtC(n){return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2}).format(n)}
+function fmtN(n,d=0){return new Intl.NumberFormat('en-US',{minimumFractionDigits:d,maximumFractionDigits:d}).format(n)}
+function parseQ(key,def=''){const p=new URLSearchParams(window.location.search);return p.get(key)??def;}
+
+/* ============================================================
+   AMORTIZATION ENGINE (mirrored from calculator)
+============================================================ */
+function periodicRate(annualRate,ppy){ return (annualRate/100/360)*(365/ppy); }
+function monthlyRate(annualRate){ return periodicRate(annualRate,12); }
+
+function buildAmort(principal,annualRate,termMonths,ppy,basis,extraEnabled,extraType,extraMonthly,extraOnceAmt,extraOnceMonth,balloonEnabled,balloonPeriods){
+  const n=Math.round(termMonths*(ppy/12));
+  const r=periodicRate(annualRate,ppy);
+  const basePayment=r===0?principal/n:principal*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1);
+  const balloonMonth=balloonEnabled?balloonPeriods:n;
+  let balance=principal,cumP=0,cumI=0;
+  const schedule=[];
+
+  for(let i=1;i<=Math.min(n,balloonMonth);i++){
+    const intPmt=balance*r;
+    let prinPmt=basePayment-intPmt;
+    let extra=0;
+    if(extraEnabled){
+      if(extraType==='recurring') extra=Math.min(extraMonthly,Math.max(0,balance-prinPmt));
+      else if(extraType==='onetime'&&i===extraOnceMonth) extra=Math.min(extraOnceAmt,Math.max(0,balance-prinPmt));
+    }
+    if(i===balloonMonth){prinPmt=balance;extra=0;}
+    else if(prinPmt+extra>=balance){prinPmt=balance;extra=0;}
+    const paid=prinPmt+extra;
+    balance=Math.max(0,balance-paid);
+    cumP+=paid;cumI+=intPmt;
+    schedule.push({period:i,payment:intPmt+prinPmt+extra,principal:prinPmt+extra,interest:intPmt,balance,cumPrincipal:cumP,cumInterest:cumI,isBalloon:i===balloonMonth&&balloonEnabled});
+    if(balance<=0) break;
+  }
+  return{schedule,basePayment,r,n};
+}
+
+/* ============================================================
+   DRAW PIE
+============================================================ */
+function drawPie(principal,interest){
+  const c=document.getElementById('rptPie');
+  const ctx=c.getContext('2d');
+  const tot=principal+interest;
+  const pA=(principal/tot)*2*Math.PI;
+  const cx=80,cy=80,r=72;
+  ctx.clearRect(0,0,160,160);
+  ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+pA);ctx.closePath();ctx.fillStyle='#007A3E';ctx.fill();
+  ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,-Math.PI/2+pA,-Math.PI/2+2*Math.PI);ctx.closePath();ctx.fillStyle='#c0392b';ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,r*.56,0,2*Math.PI);ctx.fillStyle='#fff';ctx.fill();
+  const pct=((principal/tot)*100).toFixed(1);
+  ctx.fillStyle='#007A3E';ctx.font='bold 18px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(pct+'%',cx,cy-7);ctx.font='11px system-ui';ctx.fillStyle='#6b7280';ctx.fillText('principal',cx,cy+10);
+}
+
+/* ============================================================
+   DRAW BAR
+============================================================ */
+function drawBar(schedule){
+  const canvas=document.getElementById('rptBar');
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.parentElement.clientWidth-20||500;
+  const H=200;
+  canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);
+
+  const years={};
+  schedule.forEach(row=>{
+    const yr=Math.ceil(row.period/ppy);
+    if(!years[yr]) years[yr]={principal:0,interest:0,isBalloon:false};
+    years[yr].principal+=row.principal;years[yr].interest+=row.interest;
+    if(row.isBalloon) years[yr].isBalloon=true;
+  });
+  const data=Object.entries(years).map(([yr,d])=>({yr:parseInt(yr),...d}));
+  if(!data.length) return;
+
+  const padL=48,padR=12,padT=16,padB=32;
+  const cW=W-padL-padR,cH=H-padT-padB;
+  const maxVal=Math.max(...data.map(d=>d.principal+d.interest));
+  const bW=Math.max(4,Math.floor(cW/data.length)-3);
+  const gap=Math.floor((cW-bW*data.length)/(data.length+1));
+
+  ctx.strokeStyle='#d9e6de';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y=padT+cH-(i/4)*cH;
+    ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(padL+cW,y);ctx.stroke();
+    ctx.fillStyle='#6b7280';ctx.font='9px system-ui';ctx.textAlign='right';
+    ctx.fillText('$'+fmtN((i/4)*maxVal/1000,0)+'K',padL-3,y+4);
+  }
+
+  data.forEach((d,i)=>{
+    const x=padL+gap+(bW+gap)*i;
+    const pH=(d.principal/maxVal)*cH;
+    const iH=(d.interest/maxVal)*cH;
+    ctx.fillStyle=d.isBalloon?'#005C2E':'#007A3E';
+    ctx.fillRect(x,padT+cH-pH,bW,pH);
+    ctx.fillStyle=d.isBalloon?'#FFC000':'#c0392b';
+    ctx.fillRect(x,padT+cH-pH-iH,bW,iH);
+    if(data.length<=25||(i%Math.ceil(data.length/20)===0)||(i===data.length-1)){
+      ctx.fillStyle=d.isBalloon?'#8a5b00':'#6b7280';
+      ctx.font=d.isBalloon?'bold 9px system-ui':'9px system-ui';
+      ctx.textAlign='center';
+      ctx.fillText('Y'+d.yr,x+bW/2,H-padB+14);
+    }
+  });
+
+  ctx.strokeStyle='#b8d4c2';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(padL,padT);ctx.lineTo(padL,padT+cH);ctx.lineTo(padL+cW,padT+cH);ctx.stroke();
+}
+
+/* ============================================================
+   MAIN RENDER
+============================================================ */
+function render(params){
+  const principal=parseFloat(params.loan)||1240000;
+  const annualRate=parseFloat(params.rate)||6.99;
+  const origDate=params.origDate||'';
+  const firstPayDate=params.firstPayDate||'';
+  const termMonths=parseInt(params.term)||240;
+  const ppy=parseInt(params.ppy)||12;
+  const basis='365/360'; // hardcoded
+  const balloonEnabled=params.balloon==='1';
+  const balloonYears=parseInt(params.balloonYrs)||5;
+  const extraEnabled=params.extra==='1';
+  const extraType=params.extraType||'recurring';
+  const extraMonthly=parseFloat(params.extraAmt)||0;
+  const extraOnceAmt=parseFloat(params.extraOnceAmt)||0;
+  const extraOnceMonth=parseInt(params.extraOnceMo)||12;
+
+  const balloonPeriods=Math.round(balloonYears*ppy);
+  const{schedule,basePayment,r}=buildAmort(principal,annualRate,termMonths,ppy,basis,extraEnabled,extraType,extraMonthly,extraOnceAmt,extraOnceMonth,balloonEnabled,balloonPeriods);
+  const totalInterest=schedule.reduce((s,row)=>s+row.interest,0);
+  const totalPaid=schedule.reduce((s,row)=>s+row.payment,0);
+  const effRate=r*ppy*100;
+  const balloonAmt=balloonEnabled&&schedule.length>0?schedule[schedule.length-1].balance:0;
+
+  // Key metrics
+  document.getElementById('mPayment').textContent=fmtC(basePayment);
+  document.getElementById('mLoan').textContent=fmtC(principal);
+  document.getElementById('mInterest').textContent=fmtC(totalInterest);
+  document.getElementById('mInterestPct').textContent=((totalInterest/principal)*100).toFixed(1)+'% of principal';
+  document.getElementById('mTotal').textContent=fmtC(totalPaid);
+  const ppyLbl={12:'Monthly',4:'Quarterly',2:'Semi-Annual',1:'Annual'};
+  document.getElementById('mTerm').textContent=(ppyLbl[ppy]||ppy+'/yr')+' | '+Math.round(termMonths/12)+' yr amortization';
+
+  // Detail table
+  const detailRows=[
+    ['Loan Amount',fmtC(principal)],
+    ['Annual Interest Rate',annualRate.toFixed(2)+'%'],
+    ['Effective Monthly Rate',effRate.toFixed(4)+'%'],
+    ['Origination Date',origDate?new Date(origDate+'T00:00:00').toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}):'—'],
+    ['First Payment Date',firstPayDate?new Date(firstPayDate+'T00:00:00').toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}):'—'],
+    ['Loan Amortization',termMonths+' months ('+Math.round(termMonths*(ppy/12))+' payments)'],
+    ['Monthly Payment',fmtC(basePayment),true],
+    ['Total Principal',fmtC(principal)],
+    ['Total Interest',fmtC(totalInterest)],
+    ['Total Amount Paid',fmtC(totalPaid)],
+  ];
+  const dtbody=document.getElementById('detailTable').querySelector('tbody');
+  dtbody.innerHTML='';
+  detailRows.forEach(([label,val,hl])=>{
+    const tr=document.createElement('tr');
+    if(hl) tr.classList.add('highlight-row');
+    tr.innerHTML=`<td>${label}</td><td>${val}</td>`;
+    dtbody.appendChild(tr);
+  });
+
+  // Balloon box
+  const bBox=document.getElementById('balloonBox');
+  if(balloonEnabled){
+    bBox.style.display='flex';
+    document.getElementById('balloonBoxTitle').textContent='Balloon Payment Due at Period '+balloonPeriods+' (Year '+balloonYears+')';
+    document.getElementById('balloonBoxBody').textContent='Payments are calculated based on a '+Math.round(termMonths/12)+'-year amortization schedule. The remaining principal balance of '+fmtC(balloonAmt)+' will be due in full at month '+balloonYears*12+'.';
+  } else { bBox.style.display='none'; }
+
+  // Extra payment box
+  const eBox=document.getElementById('extraBox');
+  if(extraEnabled){
+    eBox.style.display='flex';
+    if(extraType==='recurring'){
+      document.getElementById('extraBoxTitle').textContent='Recurring Extra Payment: '+fmtC(extraMonthly)+'/month';
+      document.getElementById('extraBoxBody').textContent='An additional '+fmtC(extraMonthly)+' is applied to principal each month, accelerating payoff and reducing total interest paid.';
+    } else {
+      document.getElementById('extraBoxTitle').textContent='One-Time Extra Payment: '+fmtC(extraOnceAmt)+' at Month '+extraOnceMonth;
+      document.getElementById('extraBoxBody').textContent='A lump-sum payment of '+fmtC(extraOnceAmt)+' is applied to principal at payment #'+extraOnceMonth+', reducing the outstanding balance and future interest.';
+    }
+  } else { eBox.style.display='none'; }
+
+  // Savings
+  const savSec=document.getElementById('savingsSection');
+  if(extraEnabled){
+    const base=buildAmort(principal,annualRate,termMonths,ppy,basis,false,'recurring',0,0,0,balloonEnabled,balloonPeriods);
+    const baseTI=base.schedule.reduce((s,rw)=>s+rw.interest,0);
+    const saved=baseTI-totalInterest;
+    const moSaved=base.schedule.length-schedule.length;
+    const newPayoffYrs=Math.floor(schedule.length/12);
+    const newPayoffRem=schedule.length%12;
+    savSec.style.display='';
+    document.getElementById('psSaved').textContent=fmtC(Math.max(0,saved));
+    document.getElementById('psMonths').textContent=Math.max(0,moSaved)+' mo';
+    document.getElementById('psPayoff').textContent=newPayoffYrs+'y '+newPayoffRem+'m';
+    document.getElementById('psTotal').textContent=fmtC(totalPaid);
+  } else { savSec.style.display='none'; }
+
+  // Charts
+  drawPie(principal,totalInterest);
+  document.getElementById('pieLegP').textContent=fmtC(principal);
+  document.getElementById('pieLegI').textContent=fmtC(totalInterest);
+  setTimeout(()=>drawBar(schedule),50);
+
+  // Amort table — per-period rows with real payment dates
+  const atbody=document.getElementById('rptAmortBody');
+  atbody.innerHTML='';
+  // Build payment date sequence from first payment date
+  function periodDate(idx){
+    if(!firstPayDate) return 'Period '+(idx+1);
+    const fp=new Date(firstPayDate+'T00:00:00');
+    if(ppy===12){
+      const d=new Date(fp); d.setMonth(d.getMonth()+idx); return d.toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'});
+    } else if(ppy===4){
+      const d=new Date(fp); d.setMonth(d.getMonth()+idx*3); return d.toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'});
+    } else if(ppy===2){
+      const d=new Date(fp); d.setMonth(d.getMonth()+idx*6); return d.toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'});
+    } else {
+      const d=new Date(fp); d.setFullYear(d.getFullYear()+idx); return d.toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'});
+    }
+  }
+  // Stripe alternating years for readability
+  let lastYr=-1,rowClass='';
+  schedule.forEach((row,idx)=>{
+    const yr=Math.ceil(row.period/ppy);
+    if(yr!==lastYr){
+      // Year sub-header row
+      const ytr=document.createElement('tr');
+      ytr.classList.add('year-row');
+      ytr.innerHTML=`<td colspan="7" style="text-align:left;font-size:.68rem;letter-spacing:.04em">YEAR ${yr}</td>`;
+      atbody.appendChild(ytr);
+      lastYr=yr; rowClass=(yr%2===0)?'row-even':'';
+    }
+    const tr=document.createElement('tr');
+    if(rowClass) tr.classList.add(rowClass);
+    if(row.isBalloon) tr.classList.add('balloon-row-highlight');
+    tr.innerHTML=`<td style="text-align:left">${periodDate(idx)}${row.isBalloon?' <span style="font-size:.58rem;background:var(--accent);color:#1a1a1a;padding:.1rem .3rem;border-radius:3px;margin-left:.3rem">BALLOON</span>':''}</td><td>${fmtC(row.payment)}</td><td class="p-col">${fmtC(row.principal)}</td><td class="i-col">${fmtC(row.interest)}</td><td class="cp-col">${fmtC(row.cumPrincipal)}</td><td class="ci-col">${fmtC(row.cumInterest)}</td><td>${fmtC(row.balance)}</td>`;
+    atbody.appendChild(tr);
+  });
+
+  // Basis display
+}
+
+/* ============================================================
+   UPDATE NAMES
+============================================================ */
+function updateReport(){
+  const cust=document.getElementById('customerName').value.trim()||'—';
+  const lend=document.getElementById('lenderName').value.trim()||'—';
+  const purp=document.getElementById('loanPurpose').value.trim();
+  document.getElementById('displayCustomer').textContent=cust;
+  document.getElementById('displayLender').textContent=lend;
+  document.getElementById('footerLender').textContent=lend?'Prepared by: '+lend:'';
+  if(purp) document.getElementById('reportPurposeSubtitle').textContent='Loan Purpose: '+purp+' — Review your estimated payment schedule and loan details below.';
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+document.addEventListener('DOMContentLoaded',()=>{
+  lucide.createIcons();
+
+  // Set date
+  const now=new Date();
+  document.getElementById('reportDate').textContent=now.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+
+  // Read URL params
+  const params=Object.fromEntries(new URLSearchParams(window.location.search).entries());
+  render(params);
+
+  // Pre-fill name from URL if passed
+  if(params.lender) document.getElementById('lenderName').value=params.lender;
+  updateReport();
+
+  // Resize bar on window resize
+  window.addEventListener('resize',()=>{
+    const params2=Object.fromEntries(new URLSearchParams(window.location.search).entries());
+    const ppy2=parseInt(params2.ppy)||12;
+    const tMo2=parseInt(params2.term)||240;
+    const bPeriods2=Math.round((parseInt(params2.balloonYrs)||5)*ppy2);
+    const{schedule}=buildAmort(
+      parseFloat(params2.loan)||1240000,parseFloat(params2.rate)||6.99,
+      tMo2,ppy2,params2.basis||'365/360',
+      params2.extra==='1',params2.extraType||'recurring',
+      parseFloat(params2.extraAmt)||0,parseFloat(params2.extraOnceAmt)||0,
+      parseInt(params2.extraOnceMo)||12,params2.balloon==='1',bPeriods2
+    );
+    drawBar(schedule);
+  });
+});
+</script>
+</body>
+</html>
