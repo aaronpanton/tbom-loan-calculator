@@ -87,6 +87,9 @@ input:checked + .toggle-slider:before{transform:translateX(22px)}
 /* PPY BUTTONS */
 .ppy-btns{display:flex;gap:.4rem;margin-top:.25rem}
 .dates-row{display:grid;grid-template-columns:1fr 1fr;gap:.65rem}
+.basis-btns{display:flex;gap:.5rem}
+.basis-btn{flex:1;padding:.45rem .5rem;border:1.5px solid var(--border-strong);border-radius:6px;background:var(--bg-subtle);color:var(--text-secondary);font-size:.85rem;font-weight:700;cursor:pointer;transition:all .15s}
+.basis-btn.active{background:var(--brand);color:#fff;border-color:var(--brand)}
 .date-field label{display:block;font-size:.78rem;font-weight:600;color:var(--text-secondary);margin-bottom:.35rem}
 input[type="date"]{width:100%;padding:.55rem .7rem;border:1.5px solid var(--border-strong);border-radius:8px;font-size:.88rem;color:var(--text-primary);background:var(--bg-subtle);outline:none;cursor:pointer}
 input[type="date"]:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(0,122,62,.12)}
@@ -290,6 +293,13 @@ footer strong{color:var(--text-secondary)}
         <div class="date-field">
           <label>1st Payment Date</label>
           <input type="date" id="firstPayDate" oninput="recalc()">
+        </div>
+      </div>
+      <div class="field">
+        <label>Loan Type</label>
+        <div class="basis-btns">
+          <button class="basis-btn active" id="basisCommercial" onclick="setBasis('commercial')">Commercial</button>
+          <button class="basis-btn" id="basisConsumer" onclick="setBasis('consumer')">Consumer</button>
         </div>
       </div>
 
@@ -522,7 +532,7 @@ footer strong{color:var(--text-secondary)}
 /* ============================================================
    GLOBALS
 ============================================================ */
-const currentBasis = '365/360';
+let currentBasis = 'commercial'; // 'commercial'=365/360  'consumer'=365/365
 let paymentsPerYear = 12;
 let extraType = 'recurring';
 let amortData = [];
@@ -542,7 +552,11 @@ function parseAmt(s){return parseFloat(String(s).replace(/[$,\s]/g,''))||0}
 /* ============================================================
    MONTHLY RATE
 ============================================================ */
-function periodicRate(annualRate,ppy){ return (annualRate/100/360)*(365/ppy); }
+function periodicRate(annualRate,ppy,basis){
+  basis=basis||currentBasis;
+  if(basis==='consumer') return annualRate/100/ppy;
+  return (annualRate/100/360)*(365/ppy); // commercial 365/360
+}
 function monthlyRate(annualRate){ return periodicRate(annualRate,12); }
 
 /* ============================================================
@@ -550,7 +564,7 @@ function monthlyRate(annualRate){ return periodicRate(annualRate,12); }
 ============================================================ */
 function buildAmort(principal,annualRate,termMonths,ppy,basis,extraEnabled,extraTypeL,extraMonthlyAmt,extraOnceAmt,extraOnceMonth,balloonEnabled,balloonPeriods){
   const n=Math.round(termMonths*(ppy/12));
-  const r=periodicRate(annualRate,ppy);
+  const r=periodicRate(annualRate,ppy,basis);
   const basePayment=r===0?principal/n:principal*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1);
   const balloonMonth=balloonEnabled?balloonPeriods:n;
 
@@ -1047,7 +1061,7 @@ function openCustomerReport(){
   const _origDate=document.getElementById('originDate').value||'';
   const _fpDate=document.getElementById('firstPayDate').value||'';
   const p=new URLSearchParams({
-    loan:principal,rate:rate,term:document.getElementById('loanTerm').value,ppy:paymentsPerYear,basis:currentBasis,
+    loan:principal,rate:rate,term:document.getElementById('loanTerm').value,ppy:paymentsPerYear,basis:currentBasis,basisLabel:currentBasis,
     origDate:_origDate,firstPayDate:_fpDate,
     balloon:balloonEnabled?'1':'0',balloonYrs:balloonYrs,
     extra:extraEnabled?'1':'0',extraType:extraType,
@@ -1065,6 +1079,13 @@ function setPPY(n){
   document.getElementById('ppy'+n).classList.add('active');
   const labels={12:'Default: 12 payments/year (monthly)',4:'4 payments/year (quarterly)',2:'2 payments/year (semi-annual)',1:'1 payment/year (annual)'};
   document.getElementById('ppyHint').textContent=labels[n]||n+' payments/year';
+  recalc();
+}
+
+function setBasis(b){
+  currentBasis=b;
+  document.querySelectorAll('.basis-btn').forEach(btn=>btn.classList.remove('active'));
+  document.getElementById(b==='commercial'?'basisCommercial':'basisConsumer').classList.add('active');
   recalc();
 }
 

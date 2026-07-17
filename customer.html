@@ -383,12 +383,15 @@ function parseQ(key,def=''){const p=new URLSearchParams(window.location.search);
 /* ============================================================
    AMORTIZATION ENGINE (mirrored from calculator)
 ============================================================ */
-function periodicRate(annualRate,ppy){ return (annualRate/100/360)*(365/ppy); }
+function periodicRate(annualRate,ppy,basis){
+  if(basis==='consumer') return annualRate/100/ppy;
+  return (annualRate/100/360)*(365/ppy);
+}
 function monthlyRate(annualRate){ return periodicRate(annualRate,12); }
 
 function buildAmort(principal,annualRate,termMonths,ppy,basis,extraEnabled,extraType,extraMonthly,extraOnceAmt,extraOnceMonth,balloonEnabled,balloonPeriods){
   const n=Math.round(termMonths*(ppy/12));
-  const r=periodicRate(annualRate,ppy);
+  const r=periodicRate(annualRate,ppy,basis);
   const basePayment=r===0?principal/n:principal*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1);
   const balloonMonth=balloonEnabled?balloonPeriods:n;
   let balance=principal,cumP=0,cumI=0;
@@ -497,7 +500,7 @@ function render(params){
   const firstPayDate=params.firstPayDate||'';
   const termMonths=parseInt(params.term)||240;
   const ppy=parseInt(params.ppy)||12;
-  const basis='365/360'; // hardcoded
+  const basis=params.basis||'commercial';
   const balloonEnabled=params.balloon==='1';
   const balloonYears=parseInt(params.balloonYrs)||5;
   const extraEnabled=params.extra==='1';
@@ -526,7 +529,7 @@ function render(params){
   const detailRows=[
     ['Loan Amount',fmtC(principal)],
     ['Annual Interest Rate',annualRate.toFixed(2)+'%'],
-    ['Effective Monthly Rate',effRate.toFixed(4)+'%'],
+    ['Loan Type',basis==='consumer'?'Consumer (365/365)':'Commercial (365/360)'],
     ['Origination Date',origDate?new Date(origDate+'T00:00:00').toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}):'—'],
     ['First Payment Date',firstPayDate?new Date(firstPayDate+'T00:00:00').toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}):'—'],
     ['Loan Amortization',termMonths+' months ('+Math.round(termMonths*(ppy/12))+' payments)'],
