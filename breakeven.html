@@ -206,6 +206,7 @@ function totalInterest(bal,rate,termMonths,basis){
 }
 function parseAmt(v){return parseFloat(String(v).replace(/[^0-9.]/g,''))||0;}
 function fmtC(n){return '$'+Math.round(n).toLocaleString();}
+function fmtC2(n){return (n<0?'-$':'$')+Math.round(Math.abs(n)).toLocaleString();}
 
 function setCurBasis(b){
   curBasis=b;
@@ -221,15 +222,14 @@ function setNewBasis(b){
 }
 
 function recalc(){
-  const curBal   = parseAmt(document.getElementById('curBalance').value);
-  const curRate  = parseFloat(document.getElementById('curRate').value)||0;
-  const curTerm  = parseInt(document.getElementById('curTerm').value)||1;
-  const newLoan  = parseAmt(document.getElementById('newLoan').value);
-  const newRate  = parseFloat(document.getElementById('newRate').value)||0;
-  const newTerm  = parseInt(document.getElementById('newTerm').value)||12;
-  const closing  = parseAmt(document.getElementById('closingCosts').value);
+  const curBal  = parseAmt(document.getElementById('curBalance').value);
+  const curRate = parseFloat(document.getElementById('curRate').value)||0;
+  const curTerm = parseInt(document.getElementById('curTerm').value)||1;
+  const newLoan = parseAmt(document.getElementById('newLoan').value);
+  const newRate = parseFloat(document.getElementById('newRate').value)||0;
+  const newTerm = parseInt(document.getElementById('newTerm').value)||12;
+  const closing = parseAmt(document.getElementById('closingCosts').value);
 
-  // hint updates
   document.getElementById('curTermHint').textContent=curTerm+' months = '+Math.round(curTerm/12*10)/10+' years remaining';
   document.getElementById('newTermHint').textContent=newTerm+' months = '+Math.round(newTerm/12*10)/10+' years';
   document.getElementById('curRateSlider').value=curRate;
@@ -239,83 +239,133 @@ function recalc(){
 
   if(!curBal||!curRate||!newLoan||!newRate){return;}
 
-  const curPmt   = calcPayment(curBal,curRate,curTerm,curBasis);
-  const newPmt   = calcPayment(newLoan,newRate,newTerm,newBasis);
-  const monthlySavings = curPmt - newPmt;
-  const breakEvenMonths = monthlySavings>0 ? Math.ceil(closing/monthlySavings) : Infinity;
-  const breakEvenYrs = breakEvenMonths/12;
+  const curPmt = calcPayment(curBal,curRate,curTerm,curBasis);
+  const newPmt = calcPayment(newLoan,newRate,newTerm,newBasis);
+  const pmtChange = newPmt - curPmt; // positive = new pmt is HIGHER
+  const pmtChangeLabel = pmtChange<=0
+    ? '-'+fmtC(Math.abs(pmtChange))+'/mo savings'
+    : '+'+fmtC(pmtChange)+'/mo higher';
 
-  const curTotalInt  = totalInterest(curBal,curRate,curTerm,curBasis);
-  const newTotalInt  = totalInterest(newLoan,newRate,newTerm,newBasis);
-  const netSavings   = curTotalInt - newTotalInt - closing;
+  // Month-by-month cumulative interest for both loans
+  const curR = periodicRate(curRate,12,curBasis);
+  const newR = periodicRate(newRate,12,newBasis);
+  const maxTerm = Math.max(curTerm, newTerm);
+
+  let cCumInt=0, nCumInt=0, cBal=curBal, nBal=newLoan;
+  let breakEvenMonths=Infinity;
+  const netSavingsData=[];
+
+  for(let m=1;m<=maxTerm;m++){
+    if(m<=curTerm && cBal>0.005){
+      const intP=cBal*curR;
+      const prinP=Math.min(curPmt-intP,cBal);
+      cCumInt+=intP; cBal=Math.max(0,cBal-prinP);
+    }
+    if(m<=newTerm && nBal>0.005){
+      const intP=nBal*newR;
+      const prinP=Math.min(newPmt-intP,nBal);
+      nCumInt+=intP; nBal=Math.max(0,nBal-prinP);
+    }
+    const net=cCumInt-nCumInt-closing;
+    netSavingsData.push(net);
+    if(breakEvenMonths===Infinity && net>=0) breakEvenMonths=m;
+  }
+
+  const curTotalInt = totalInterest(curBal,curRate,curTerm,curBasis);
+  const newTotalInt = totalInterest(newLoan,newRate,newTerm,newBasis);
+  const netLifeSavings = curTotalInt-newTotalInt-closing;
+
+  // Verdict logic
+  let verdict, verdictColor, verdictIcon;
+  if(!isFinite(breakEvenMonths)){
+    verdict='Higher total interest cost — refinancing increases overall costs';
+    verdictColor='var(--danger)'; verdictIcon='alert-triangle';
+  } else if(breakEvenMonths<=24){
+    verdict='Strong case for refinancing — recoups closing costs quickly';
+    verdictColor='var(--brand)'; verdictIcon='check-circle';
+  } else if(breakEvenMonths<=48){
+    verdict='Good — break-even within 4 years';
+    verdictColor='#2e7d32'; verdictIcon='check-circle';
+  } else if(breakEvenMonths<=72){
+    verdict='Moderate — verify you plan to keep the loan that long';
+    verdictColor='#e65100'; verdictIcon='alert-triangle';
+  } else {
+    verdict='Long break-even — carefully weigh whether you will hold the loan long enough';
+    verdictColor='var(--danger)'; verdictIcon='alert-triangle';
+  }
+
+  // Payment note
+  const pmtNoteColor = pmtChange<=0 ? 'var(--brand)' : 'var(--danger)';
+  const pmtNote = pmtChange<=0
+    ? '<span style="color:var(--brand);font-weight:700">Lower monthly payment by '+fmtC(Math.abs(pmtChange))+'</span>'
+    : '<span style="color:var(--danger);font-weight:700">Higher monthly payment by '+fmtC(pmtChange)+' — but may still save interest overall</span>';
+
+  const beMonthsLabel = isFinite(breakEvenMonths)
+    ? breakEvenMonths+' months ('+Math.floor(breakEvenMonths/12)+'y '+(breakEvenMonths%12)+'m)'
+    : 'Never — new loan costs more in total interest';
+
+  const pct = isFinite(breakEvenMonths) ? Math.min(100,Math.round((breakEvenMonths/newTerm)*100)) : 100;
+
+  // Chart data — sample ~80 points
+  const chartMonths=Math.min(maxTerm,360);
+  const step=Math.max(1,Math.ceil(chartMonths/80));
 
   const rb=document.getElementById('resultsBody');
-
-  if(monthlySavings<=0){
-    rb.innerHTML=`
-      <div style="background:#fff5f5;border:1.5px solid #fcc;border-radius:9px;padding:1.1rem 1.25rem;color:var(--danger);font-weight:600;font-size:.9rem">
-        <i data-lucide="alert-circle" style="width:16px;height:16px;vertical-align:middle;margin-right:.4rem"></i>
-        The new loan has a <strong>higher payment</strong> (${fmtC(newPmt)}/mo vs ${fmtC(curPmt)}/mo). Refinancing would not reduce monthly costs. Consider a lower rate or longer term.
-      </div>`;
-    lucide.createIcons();
-    return;
-  }
-
-  const pct=Math.min(100,Math.round((breakEvenMonths/Math.max(curTerm,newTerm))*100));
-  const verdict=breakEvenMonths<=24?'Strong case for refinancing'
-    :breakEvenMonths<=48?'Good — break-even within 4 years'
-    :breakEvenMonths<=72?'Moderate — verify you will keep the loan that long'
-    :'Long break-even — carefully weigh the benefit';
-  const verdictColor=breakEvenMonths<=24?'var(--brand)':breakEvenMonths<=48?'#2e7d32':breakEvenMonths<=72?'#e65100':'var(--danger)';
-
-  // Build cumulative savings data for chart
-  const chartMonths=Math.min(Math.max(newTerm,curTerm),360);
-  const labels=[],cumulData=[];
-  for(let m=1;m<=chartMonths;m+=Math.ceil(chartMonths/40)){
-    labels.push(m);
-    cumulData.push(Math.max(0, m*monthlySavings - closing));
-  }
-
   rb.innerHTML=`
     <div class="result-hero-row">
-      <div class="hero-stat ${monthlySavings>0?'accent':'danger'}">
-        <div class="hs-label">Monthly Savings</div>
-        <div class="hs-value" style="color:${monthlySavings>0?'var(--brand)':'var(--danger)'}">${fmtC(monthlySavings)}</div>
-        <div class="hs-sub">${fmtC(curPmt)}/mo &rarr; ${fmtC(newPmt)}/mo</div>
+      <div class="hero-stat ${pmtChange<=0?'accent':''}">
+        <div class="hs-label">Monthly Payment</div>
+        <div class="hs-value" style="color:${pmtNoteColor}">${fmtC(newPmt)}/mo</div>
+        <div class="hs-sub">${fmtC(curPmt)}/mo &rarr; ${pmtChangeLabel}</div>
       </div>
       <div class="hero-stat ${isFinite(breakEvenMonths)&&breakEvenMonths<=48?'accent':''}">
         <div class="hs-label">Break-Even Point</div>
-        <div class="hs-value" style="color:${verdictColor}">${isFinite(breakEvenMonths)?breakEvenMonths+' mo':'\u221e'}</div>
-        <div class="hs-sub">${isFinite(breakEvenMonths)?(Math.floor(breakEvenYrs)+' yr '+(breakEvenMonths%12)+' mo'):'Never recoups costs'}</div>
+        <div class="hs-value" style="color:${verdictColor}">${isFinite(breakEvenMonths)?breakEvenMonths+' mo':'Never'}</div>
+        <div class="hs-sub">${isFinite(breakEvenMonths)?(Math.floor(breakEvenMonths/12)+'y '+(breakEvenMonths%12)+'m to recoup closing costs'):'New loan costs more in total interest'}</div>
       </div>
-      <div class="hero-stat ${netSavings>0?'accent':'danger'}">
-        <div class="hs-label">Net Lifetime Savings</div>
-        <div class="hs-value" style="color:${netSavings>0?'var(--brand)':'var(--danger)'}">${fmtC(Math.abs(netSavings))}</div>
-        <div class="hs-sub">${netSavings>0?'Saved over life of loan':'Additional cost after closing'}</div>
+      <div class="hero-stat ${netLifeSavings>0?'accent':'danger'}">
+        <div class="hs-label">Net Life-of-Loan Savings</div>
+        <div class="hs-value" style="color:${netLifeSavings>0?'var(--brand)':'var(--danger)'}"> ${fmtC2(netLifeSavings)}</div>
+        <div class="hs-sub">${netLifeSavings>0?'Saved after closing costs':'Additional cost vs staying put'}</div>
       </div>
     </div>
 
     <div style="background:${verdictColor}18;border:1.5px solid ${verdictColor}55;border-radius:8px;padding:.75rem 1rem;margin-bottom:1.1rem;font-size:.85rem;font-weight:600;color:${verdictColor};display:flex;align-items:center;gap:.5rem">
-      <i data-lucide="${breakEvenMonths<=48?'check-circle':'alert-triangle'}" style="width:16px;height:16px;flex-shrink:0"></i>
-      ${verdict}
+      <i data-lucide="${verdictIcon}" style="width:16px;height:16px;flex-shrink:0"></i>
+      ${verdict}&nbsp;&nbsp;&mdash;&nbsp;&nbsp;${pmtNote}
     </div>
 
     <table class="cmp-table">
       <thead><tr><th>Metric</th><th>Current Loan</th><th>New Loan</th><th>Difference</th></tr></thead>
       <tbody>
-        <tr><td>Periodic Payment</td><td>${fmtC(curPmt)}/mo</td><td class="better">${fmtC(newPmt)}/mo</td><td class="better">-${fmtC(curPmt-newPmt)}/mo</td></tr>
-        <tr><td>Interest Rate</td><td>${curRate.toFixed(2)}%</td><td class="better">${newRate.toFixed(2)}%</td><td class="better">-${(curRate-newRate).toFixed(2)}%</td></tr>
-        <tr><td>Remaining Term</td><td>${curTerm} mo</td><td>${newTerm} mo</td><td>${newTerm-curTerm>0?'+':''}${newTerm-curTerm} mo</td></tr>
-        <tr><td>Total Interest</td><td class="worse">${fmtC(curTotalInt)}</td><td class="better">${fmtC(newTotalInt)}</td><td class="better">-${fmtC(curTotalInt-newTotalInt)}</td></tr>
-        <tr><td>Closing Costs</td><td>—</td><td class="worse">${fmtC(closing)}</td><td class="worse">+${fmtC(closing)}</td></tr>
-        <tr><td><strong>Net Savings</strong></td><td></td><td></td><td class="${netSavings>0?'better':'worse'}"><strong>${netSavings>0?'+':'-'}${fmtC(Math.abs(netSavings))}</strong></td></tr>
+        <tr><td>Monthly Payment</td>
+          <td>${fmtC(curPmt)}/mo</td>
+          <td class="${pmtChange<=0?'better':'worse'}">${fmtC(newPmt)}/mo</td>
+          <td class="${pmtChange<=0?'better':'worse'}">${pmtChange<=0?'-':'+'}${fmtC(Math.abs(pmtChange))}/mo</td>
+        </tr>
+        <tr><td>Interest Rate</td>
+          <td>${curRate.toFixed(2)}%</td>
+          <td class="${newRate<=curRate?'better':'worse'}">${newRate.toFixed(2)}%</td>
+          <td class="${newRate<=curRate?'better':'worse'}">${newRate<=curRate?'':'+'}${(newRate-curRate).toFixed(2)}%</td>
+        </tr>
+        <tr><td>Loan Term</td><td>${curTerm} mo</td><td>${newTerm} mo</td><td>${newTerm-curTerm>0?'+':''}${newTerm-curTerm} mo</td></tr>
+        <tr><td>Total Interest Cost</td>
+          <td class="worse">${fmtC(curTotalInt)}</td>
+          <td class="${newTotalInt<curTotalInt?'better':'worse'}">${fmtC(newTotalInt)}</td>
+          <td class="${newTotalInt<curTotalInt?'better':'worse'}">${newTotalInt<curTotalInt?'-':'+'}${fmtC(Math.abs(curTotalInt-newTotalInt))}</td>
+        </tr>
+        <tr><td>Closing Costs</td><td>&mdash;</td><td class="worse">${fmtC(closing)}</td><td class="worse">+${fmtC(closing)}</td></tr>
+        <tr><td><strong>Net Life Savings</strong></td><td></td><td></td>
+          <td class="${netLifeSavings>0?'better':'worse'}"><strong>${fmtC2(netLifeSavings)}</strong></td>
+        </tr>
       </tbody>
     </table>
 
+    ${isFinite(breakEvenMonths)?`
     <div class="timeline-wrap">
-      <div class="timeline-label">Break-Even Progress — Month ${isFinite(breakEvenMonths)?breakEvenMonths:'N/A'} of ${newTerm}</div>
+      <div class="timeline-label">Break-Even Progress &mdash; Month ${breakEvenMonths} of ${newTerm} (${Math.round(pct)}% of new loan term)</div>
       <div class="timeline-bar-outer">
-        <div class="timeline-bar-inner" style="width:${pct}%">${isFinite(breakEvenMonths)?breakEvenMonths+' mo':''}</div>
+        <div class="timeline-bar-inner" style="width:${pct}%">${breakEvenMonths} mo</div>
       </div>
       <div class="timeline-ticks">
         <span>Month 0</span>
@@ -324,68 +374,85 @@ function recalc(){
         <span>Month ${Math.round(3*newTerm/4)}</span>
         <span>Month ${newTerm}</span>
       </div>
-    </div>
+    </div>`:''}
 
     <div class="savings-chart">
-      <div class="savings-chart-title">Cumulative Savings Over Time (after closing costs)</div>
+      <div class="savings-chart-title">Cumulative Interest Savings Over Time (after closing costs)</div>
       <canvas id="beChart" height="180"></canvas>
     </div>
   `;
   lucide.createIcons();
 
-  // Draw cumulative savings chart
+  // Draw chart
   const ctx2=document.getElementById('beChart');
   if(!ctx2) return;
   const cCtx=ctx2.getContext('2d');
   const W=ctx2.offsetWidth||700; const H=180;
   ctx2.width=W; ctx2.height=H;
-  const pad={t:20,r:20,b:35,l:75};
+  const pad={t:20,r:20,b:35,l:80};
   const chartW=W-pad.l-pad.r; const chartH=H-pad.t-pad.b;
 
-  // Build full data
-  const fullData=[];
-  for(let m=0;m<=chartMonths;m++) fullData.push(m*monthlySavings-closing);
-  const maxV=Math.max(...fullData,0);
-  const minV=Math.min(...fullData,0);
-  const range=maxV-minV||1;
+  // Sample data
+  const pts=[];
+  for(let m=0;m<=chartMonths;m+=step) pts.push({m,v:m===0?-closing:netSavingsData[Math.min(m-1,netSavingsData.length-1)]});
+  if(pts[pts.length-1].m<chartMonths) pts.push({m:chartMonths,v:netSavingsData[chartMonths-1]||0});
 
+  const vals=pts.map(p=>p.v);
+  const maxV=Math.max(...vals,0);
+  const minV=Math.min(...vals,0);
+  const range=maxV-minV||1;
   function toX(m){return pad.l+((m/chartMonths)*chartW);}
   function toY(v){return pad.t+chartH-((v-minV)/range*chartH);}
   const zeroY=toY(0);
 
   cCtx.clearRect(0,0,W,H);
-  // Grid lines
+  // Grid
   cCtx.strokeStyle='#dde8e2'; cCtx.lineWidth=1;
   for(let i=0;i<=4;i++){
     const y=pad.t+(i/4)*chartH;
     cCtx.beginPath();cCtx.moveTo(pad.l,y);cCtx.lineTo(W-pad.r,y);cCtx.stroke();
     const val=maxV-i/4*range;
     cCtx.fillStyle='#7a8e85';cCtx.font='10px Inter,sans-serif';
-    cCtx.textAlign='right';cCtx.fillText('$'+Math.round(val/1000)+'K',pad.l-6,y+4);
+    cCtx.textAlign='right';
+    const k=Math.abs(val)>=1000?Math.round(val/1000)+'K':Math.round(val).toString();
+    cCtx.fillText('$'+k,pad.l-6,y+4);
   }
   // Zero line
-  cCtx.strokeStyle='#007A3E';cCtx.lineWidth=1.5;cCtx.setLineDash([4,3]);
-  cCtx.beginPath();cCtx.moveTo(pad.l,zeroY);cCtx.lineTo(W-pad.r,zeroY);cCtx.stroke();
-  cCtx.setLineDash([]);
+  if(minV<0){
+    cCtx.strokeStyle='#aaa';cCtx.lineWidth=1;cCtx.setLineDash([4,3]);
+    cCtx.beginPath();cCtx.moveTo(pad.l,zeroY);cCtx.lineTo(W-pad.r,zeroY);cCtx.stroke();
+    cCtx.setLineDash([]);
+  }
   // Break-even marker
   if(isFinite(breakEvenMonths)&&breakEvenMonths<=chartMonths){
     const bx=toX(breakEvenMonths);
     cCtx.strokeStyle='var(--accent)';cCtx.lineWidth=2;
     cCtx.beginPath();cCtx.moveTo(bx,pad.t);cCtx.lineTo(bx,H-pad.b);cCtx.stroke();
-    cCtx.fillStyle='var(--accent)';cCtx.font='bold 10px Inter,sans-serif';cCtx.textAlign='center';
-    cCtx.fillText('Break-Even',bx,pad.t-5);
+    cCtx.fillStyle='#996600';cCtx.font='bold 10px Inter,sans-serif';cCtx.textAlign='center';
+    cCtx.fillText('Break-Even',bx,pad.t-4);
   }
-  // Gradient fill
+  // Gradient fill above zero
   const grad=cCtx.createLinearGradient(0,pad.t,0,H-pad.b);
   grad.addColorStop(0,'rgba(0,122,62,.25)');grad.addColorStop(1,'rgba(0,122,62,.02)');
-  cCtx.beginPath();cCtx.moveTo(toX(0),toY(fullData[0]));
-  for(let m=1;m<=chartMonths;m++) cCtx.lineTo(toX(m),toY(fullData[m]));
-  cCtx.lineTo(toX(chartMonths),zeroY);cCtx.lineTo(toX(0),zeroY);cCtx.closePath();
+  cCtx.beginPath();cCtx.moveTo(toX(pts[0].m),toY(pts[0].v));
+  for(let i=1;i<pts.length;i++) cCtx.lineTo(toX(pts[i].m),toY(pts[i].v));
+  cCtx.lineTo(toX(pts[pts.length-1].m),zeroY);cCtx.lineTo(toX(pts[0].m),zeroY);cCtx.closePath();
   cCtx.fillStyle=grad;cCtx.fill();
+  // Red fill below zero
+  if(minV<0){
+    const redGrad=cCtx.createLinearGradient(0,zeroY,0,H-pad.b);
+    redGrad.addColorStop(0,'rgba(192,57,43,.15)');redGrad.addColorStop(1,'rgba(192,57,43,.02)');
+    cCtx.beginPath();cCtx.moveTo(toX(pts[0].m),Math.max(toY(pts[0].v),zeroY));
+    for(let i=1;i<pts.length;i++) cCtx.lineTo(toX(pts[i].m),Math.max(toY(pts[i].v),zeroY));
+    cCtx.lineTo(toX(pts[pts.length-1].m),zeroY);cCtx.lineTo(toX(pts[0].m),zeroY);cCtx.closePath();
+    cCtx.fillStyle=redGrad;cCtx.fill();
+  }
   // Line
-  cCtx.beginPath();cCtx.strokeStyle='#007A3E';cCtx.lineWidth=2.5;
-  cCtx.moveTo(toX(0),toY(fullData[0]));
-  for(let m=1;m<=chartMonths;m++) cCtx.lineTo(toX(m),toY(fullData[m]));
+  cCtx.beginPath();
+  cCtx.strokeStyle=netLifeSavings>=0?'#007A3E':'#c0392b';
+  cCtx.lineWidth=2.5;
+  cCtx.moveTo(toX(pts[0].m),toY(pts[0].v));
+  for(let i=1;i<pts.length;i++) cCtx.lineTo(toX(pts[i].m),toY(pts[i].v));
   cCtx.stroke();
   // X labels
   cCtx.fillStyle='#7a8e85';cCtx.font='10px Inter,sans-serif';cCtx.textAlign='center';
@@ -394,7 +461,6 @@ function recalc(){
 
 document.addEventListener('DOMContentLoaded',()=>{
   lucide.createIcons();
-  recalc();
   window.addEventListener('resize',recalc);
 });
 </script>
