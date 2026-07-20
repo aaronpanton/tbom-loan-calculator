@@ -345,7 +345,12 @@ body.dark .hero{background:linear-gradient(135deg,#042010 0%,#0a3520 100%)}
       </div>
       <div id="balloonPanel" class="sub-panel hidden">
         <div class="field">
-          <label>Balloon Due After<span class="tip-icon" tabindex="0">?</span><span class="tip-box">A balloon loan has payments calculated over the full amortization term, but the remaining balance becomes due in full on this date. Common in commercial real estate.</span></label>
+          <label>Balloon Maturity Date<span class="tip-icon" tabindex="0">?</span><span class="tip-box">Enter the exact date the balloon payment is due. When set, this overrides the years slider below. Leave blank to use the years slider instead.</span></label>
+          <input type="date" id="balloonMaturityDate" oninput="syncBalloonFromDate();recalc()">
+          <p class="field-hint">Optional — enter exact maturity date to match Laser Pro output</p>
+        </div>
+        <div class="field">
+          <label>— or — Balloon Due After</label>
           <div class="input-wrap has-suffix">
             <input type="number" id="balloonYears" value="5" min="1" max="15" step="1" oninput="syncBalloonSlider();recalc()">
             <span class="input-suffix">yrs</span>
@@ -585,21 +590,49 @@ function monthlyRate(annualRate){ return periodicRate(annualRate,12); }
 /* ============================================================
    AMORTIZATION ENGINE
 ============================================================ */
-function buildAmort(principal,annualRate,termMonths,ppy,basis,extraEnabled,extraTypeL,extraMonthlyAmt,extraOnceAmt,extraOnceMonth,balloonEnabled,balloonPeriods){
+function buildAmort(principal,annualRate,termMonths,ppy,basis,extraEnabled,extraTypeL,extraMonthlyAmt,extraOnceAmt,extraOnceMonth,balloonEnabled,balloonPeriods,origDateStr,firstPayDateStr){
   const n=Math.round(termMonths*(ppy/12));
   const r=periodicRate(annualRate,ppy,basis);
   const basePayment=r===0?principal/n:principal*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1);
   const balloonMonth=balloonEnabled?balloonPeriods:n;
 
+  // Actual-day U.S. Rule interest setup
+  const useActualDays=!!(origDateStr&&firstPayDateStr);
+  const dailyRate=basis==='consumer'?(annualRate/100/365):(annualRate/100/360);
+  const moPerPeriod=Math.round(12/ppy);
+  function getPayDate(i){
+    const d=new Date(firstPayDateStr+'T12:00:00');
+    d.setMonth(d.getMonth()+(i-1)*moPerPeriod);
+    return d;
+  }
+
   let balance=principal;
   const schedule=[];
   let cumP=0,cumI=0;
   let totalPaid=0;
+  let deferredInterest=0; // U.S. Rule: unpaid accrued interest carried forward
 
   for(let i=1;i<=Math.min(n,balloonMonth);i++){
-    const interestPmt=balance*r;
+    let interestPmt;
+    if(useActualDays){
+      const prevDate=i===1?new Date(origDateStr+'T12:00:00'):getPayDate(i-1);
+      const curDate=getPayDate(i);
+      const days=Math.round((curDate-prevDate)/(1000*60*60*24));
+      interestPmt=balance*dailyRate*days+deferredInterest;
+      deferredInterest=0;
+    }else{
+      interestPmt=balance*r;
+    }
+
     let principalPmt=basePayment-interestPmt;
     let extra=0;
+
+    // U.S. Rule: if accrued interest exceeds payment, defer excess; no principal reduction
+    if(principalPmt<0){
+      deferredInterest+=(-principalPmt);
+      principalPmt=0;
+      interestPmt=basePayment;
+    }
 
     // Extra payment
     if(extraEnabled){
@@ -656,16 +689,26 @@ function _recalc(){
 
   const balloonEnabled=document.getElementById('balloonToggle').checked;
   const balloonYears=parseInt(document.getElementById('balloonYears').value)||5;
-  const balloonPeriods=Math.round(balloonYears*paymentsPerYear);
+  const balloonMatStr=document.getElementById('balloonMaturityDate').value||'';
+  const _fpDate2=document.getElementById('firstPayDate').value||'';
+  let balloonPeriods=Math.round(balloonYears*paymentsPerYear);
+  if(balloonEnabled&&balloonMatStr&&_fpDate2){
+    const matD=new Date(balloonMatStr+'T12:00:00');
+    const fpD=new Date(_fpDate2+'T12:00:00');
+    const moCount=Math.round((matD.getFullYear()-fpD.getFullYear())*12+(matD.getMonth()-fpD.getMonth()));
+    if(moCount>0) balloonPeriods=Math.round(moCount*(paymentsPerYear/12));
+  }
   const extraEnabled=document.getElementById('extraToggle').checked;
   const extraMonthlyAmt=parseAmt(document.getElementById('extraMonthly').value);
   const extraOnceAmt=parseAmt(document.getElementById('extraOnceAmt').value);
   const extraOnceMonth=parseInt(document.getElementById('extraOnceMonth').value)||12;
 
+  const _origDate=document.getElementById('originDate').value||'';
+  const _fpDate=document.getElementById('firstPayDate').value||'';
   const{schedule,basePayment,balloonAmt,totalPaid,r,n}=buildAmort(
     principal,annualRate,termMonths,paymentsPerYear,currentBasis,
     extraEnabled,extraType,extraMonthlyAmt,extraOnceAmt,extraOnceMonth,
-    balloonEnabled,balloonPeriods
+    balloonEnabled,balloonPeriods,_origDate,_fpDate
   );
   amortData=schedule;
 
@@ -691,8 +734,10 @@ function _recalc(){
   const bRow=document.getElementById('balloonResultRow');
   if(balloonEnabled&&balloonAmt>0){
     bRow.classList.remove('hidden');
+    const balloonMatStrDisp=document.getElementById('balloonMaturityDate').value||'';
+    const balloonDateLabel=balloonMatStrDisp?' ('+new Date(balloonMatStrDisp+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+')':' (year '+balloonYears+')';
     document.getElementById('balloonResultText').textContent=
-      'Balloon payment of '+fmtC(balloonAmt)+' due at period '+balloonPeriods+' (year '+balloonYears+')';
+      'Balloon payment of '+fmtC(balloonAmt)+' due at period '+balloonPeriods+balloonDateLabel;
   } else {
     bRow.classList.add('hidden');
   }
@@ -700,7 +745,7 @@ function _recalc(){
   // Savings box
   const savingsBox=document.getElementById('savingsBox');
   if(extraEnabled){
-    const baseResult=buildAmort(principal,annualRate,termMonths,paymentsPerYear,currentBasis,false,'recurring',0,0,0,balloonEnabled,balloonPeriods);
+    const baseResult=buildAmort(principal,annualRate,termMonths,paymentsPerYear,currentBasis,false,'recurring',0,0,0,balloonEnabled,balloonPeriods,_origDate,_fpDate);
     const baseTotalInterest=baseResult.schedule.reduce((s,rw)=>s+rw.interest,0);
     const baseTotalPaid=baseResult.schedule.reduce((s,rw)=>s+rw.payment,0);
     const totalInterestWithExtra=schedule.reduce((s,rw)=>s+rw.interest,0);
@@ -1015,6 +1060,17 @@ function setExtraType(t){
 
 function syncBalloonSlider(){document.getElementById('balloonSlider').value=document.getElementById('balloonYears').value||5;}
 function syncBalloonInput(){document.getElementById('balloonYears').value=document.getElementById('balloonSlider').value;}
+function syncBalloonFromDate(){
+  const matStr=document.getElementById('balloonMaturityDate').value;
+  const fpStr=document.getElementById('firstPayDate').value;
+  if(!matStr||!fpStr) return;
+  const mat=new Date(matStr+'T12:00:00');
+  const fp=new Date(fpStr+'T12:00:00');
+  const months=Math.round((mat.getFullYear()-fp.getFullYear())*12+(mat.getMonth()-fp.getMonth()));
+  const yrs=Math.max(1,Math.min(15,Math.round(months/12)));
+  document.getElementById('balloonYears').value=yrs;
+  document.getElementById('balloonSlider').value=yrs;
+}
 
 function syncExtraMonthly(){
   const v=document.getElementById('extraMonthlySlider').value;
@@ -1083,10 +1139,11 @@ function openCustomerReport(){
 
   const _origDate=document.getElementById('originDate').value||'';
   const _fpDate=document.getElementById('firstPayDate').value||'';
+  const _balloonMatDate=document.getElementById('balloonMaturityDate').value||'';
   const p=new URLSearchParams({
     loan:principal,rate:rate,term:document.getElementById('loanTerm').value,ppy:paymentsPerYear,basis:currentBasis,basisLabel:currentBasis,
     origDate:_origDate,firstPayDate:_fpDate,
-    balloon:balloonEnabled?'1':'0',balloonYrs:balloonYrs,
+    balloon:balloonEnabled?'1':'0',balloonYrs:balloonYrs,balloonMatDate:_balloonMatDate,
     extra:extraEnabled?'1':'0',extraType:extraType,
     extraAmt:extraMonthly,extraOnceAmt:extraOnceAmt,extraOnceMo:extraOnceMo
   });

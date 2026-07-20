@@ -395,18 +395,46 @@ function periodicRate(annualRate,ppy,basis){
 }
 function monthlyRate(annualRate){ return periodicRate(annualRate,12); }
 
-function buildAmort(principal,annualRate,termMonths,ppy,basis,extraEnabled,extraType,extraMonthly,extraOnceAmt,extraOnceMonth,balloonEnabled,balloonPeriods){
+function buildAmort(principal,annualRate,termMonths,ppy,basis,extraEnabled,extraType,extraMonthly,extraOnceAmt,extraOnceMonth,balloonEnabled,balloonPeriods,origDateStr,firstPayDateStr){
   const n=Math.round(termMonths*(ppy/12));
   const r=periodicRate(annualRate,ppy,basis);
   const basePayment=r===0?principal/n:principal*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1);
   const balloonMonth=balloonEnabled?balloonPeriods:n;
+
+  const useActualDays=!!(origDateStr&&firstPayDateStr);
+  const dailyRate=basis==='consumer'?(annualRate/100/365):(annualRate/100/360);
+  const moPerPeriod=Math.round(12/ppy);
+  function getPayDate(i){
+    const d=new Date(firstPayDateStr+'T12:00:00');
+    d.setMonth(d.getMonth()+(i-1)*moPerPeriod);
+    return d;
+  }
+
   let balance=principal,cumP=0,cumI=0;
   const schedule=[];
+  let deferredInterest=0;
 
   for(let i=1;i<=Math.min(n,balloonMonth);i++){
-    const intPmt=balance*r;
+    let intPmt;
+    if(useActualDays){
+      const prevDate=i===1?new Date(origDateStr+'T12:00:00'):getPayDate(i-1);
+      const curDate=getPayDate(i);
+      const days=Math.round((curDate-prevDate)/(1000*60*60*24));
+      intPmt=balance*dailyRate*days+deferredInterest;
+      deferredInterest=0;
+    }else{
+      intPmt=balance*r;
+    }
+
     let prinPmt=basePayment-intPmt;
     let extra=0;
+
+    if(prinPmt<0){
+      deferredInterest+=(-prinPmt);
+      prinPmt=0;
+      intPmt=basePayment;
+    }
+
     if(extraEnabled){
       if(extraType==='recurring') extra=Math.min(extraMonthly,Math.max(0,balance-prinPmt));
       else if(extraType==='onetime'&&i===extraOnceMonth) extra=Math.min(extraOnceAmt,Math.max(0,balance-prinPmt));
@@ -515,8 +543,15 @@ function render(params){
   const extraOnceAmt=parseFloat(params.extraOnceAmt)||0;
   const extraOnceMonth=parseInt(params.extraOnceMo)||12;
 
-  const balloonPeriods=Math.round(balloonYears*ppy);
-  const{schedule,basePayment,r}=buildAmort(principal,annualRate,termMonths,ppy,basis,extraEnabled,extraType,extraMonthly,extraOnceAmt,extraOnceMonth,balloonEnabled,balloonPeriods);
+  const balloonMatDate=params.balloonMatDate||'';
+  let balloonPeriods=Math.round(balloonYears*ppy);
+  if(balloonEnabled&&balloonMatDate&&firstPayDate){
+    const matD=new Date(balloonMatDate+'T12:00:00');
+    const fpD=new Date(firstPayDate+'T12:00:00');
+    const moCount=Math.round((matD.getFullYear()-fpD.getFullYear())*12+(matD.getMonth()-fpD.getMonth()));
+    if(moCount>0) balloonPeriods=Math.round(moCount*(ppy/12));
+  }
+  const{schedule,basePayment,r}=buildAmort(principal,annualRate,termMonths,ppy,basis,extraEnabled,extraType,extraMonthly,extraOnceAmt,extraOnceMonth,balloonEnabled,balloonPeriods,origDate,firstPayDate);
   const totalInterest=schedule.reduce((s,row)=>s+row.interest,0);
   const totalPaid=schedule.reduce((s,row)=>s+row.payment,0);
   const effRate=r*ppy*100;
@@ -577,7 +612,7 @@ function render(params){
   // Savings
   const savSec=document.getElementById('savingsSection');
   if(extraEnabled){
-    const base=buildAmort(principal,annualRate,termMonths,ppy,basis,false,'recurring',0,0,0,balloonEnabled,balloonPeriods);
+    const base=buildAmort(principal,annualRate,termMonths,ppy,basis,false,'recurring',0,0,0,balloonEnabled,balloonPeriods,origDate,firstPayDate);
     const baseTI=base.schedule.reduce((s,rw)=>s+rw.interest,0);
     const saved=baseTI-totalInterest;
     const moSaved=base.schedule.length-schedule.length;
@@ -671,13 +706,21 @@ document.addEventListener('DOMContentLoaded',()=>{
     const params2=Object.fromEntries(new URLSearchParams(window.location.search).entries());
     const ppy2=parseInt(params2.ppy)||12;
     const tMo2=parseInt(params2.term)||240;
-    const bPeriods2=Math.round((parseInt(params2.balloonYrs)||5)*ppy2);
+    let bPeriods2=Math.round((parseInt(params2.balloonYrs)||5)*ppy2);
+    const bMatD2=params2.balloonMatDate||'';
+    const fpD2=params2.firstPayDate||'';
+    if(params2.balloon==='1'&&bMatD2&&fpD2){
+      const m2=new Date(bMatD2+'T12:00:00'),f2=new Date(fpD2+'T12:00:00');
+      const mc2=Math.round((m2.getFullYear()-f2.getFullYear())*12+(m2.getMonth()-f2.getMonth()));
+      if(mc2>0) bPeriods2=Math.round(mc2*(ppy2/12));
+    }
     const{schedule}=buildAmort(
       parseFloat(params2.loan)||1240000,parseFloat(params2.rate)||6.99,
-      tMo2,ppy2,params2.basis||'365/360',
+      tMo2,ppy2,params2.basis||'commercial',
       params2.extra==='1',params2.extraType||'recurring',
       parseFloat(params2.extraAmt)||0,parseFloat(params2.extraOnceAmt)||0,
-      parseInt(params2.extraOnceMo)||12,params2.balloon==='1',bPeriods2
+      parseInt(params2.extraOnceMo)||12,params2.balloon==='1',bPeriods2,
+      params2.origDate||'',fpD2
     );
     drawBar(schedule);
   });
