@@ -593,13 +593,27 @@ function monthlyRate(annualRate){ return periodicRate(annualRate,12); }
 function buildAmort(principal,annualRate,termMonths,ppy,basis,extraEnabled,extraTypeL,extraMonthlyAmt,extraOnceAmt,extraOnceMonth,balloonEnabled,balloonPeriods,origDateStr,firstPayDateStr){
   const n=Math.round(termMonths*(ppy/12));
   const r=periodicRate(annualRate,ppy,basis);
-  const basePayment=r===0?principal/n:principal*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1);
+  let basePayment=r===0?principal/n:principal*(r*Math.pow(1+r,n))/(Math.pow(1+r,n)-1);
   const balloonMonth=balloonEnabled?balloonPeriods:n;
 
   // Actual-day U.S. Rule interest setup
   const useActualDays=!!(origDateStr&&firstPayDateStr);
   const dailyRate=basis==='consumer'?(annualRate/100/365):(annualRate/100/360);
   const moPerPeriod=Math.round(12/ppy);
+
+  // Odd-first-period payment adjustment (Laser Pro / US Rule)
+  // When origination to first payment exceeds a standard period, the base payment
+  // is adjusted upward by (1+r)^(actual_days/standard_days - 1)
+  if(useActualDays){
+    const origD=new Date(origDateStr+'T12:00:00');
+    const fpD=new Date(firstPayDateStr+'T12:00:00');
+    const actualDays=Math.round((fpD-origD)/(1000*60*60*24));
+    const stdDays=(basis==='consumer'?365:365)/ppy; // standard period in days = 365/ppy
+    if(actualDays>stdDays*1.05){ // only adjust if meaningfully longer than standard period
+      const oddFactor=Math.pow(1+r, actualDays/stdDays - 1);
+      basePayment=basePayment*oddFactor;
+    }
+  }
   function getPayDate(i){
     const d=new Date(firstPayDateStr+'T12:00:00');
     d.setMonth(d.getMonth()+(i-1)*moPerPeriod);
