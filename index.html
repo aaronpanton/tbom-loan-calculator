@@ -684,7 +684,9 @@ function buildAmort(principal,annualRate,termMonths,ppy,basis,extraEnabled,extra
     if(balance<=0) break;
   }
 
-  const balloonAmt=balloonEnabled&&schedule.length>0?schedule[schedule.length-1].balance:0;
+  // balloonAmt = principal on the balloon row = remaining balance just before payoff
+  const lastRow=schedule.length>0?schedule[schedule.length-1]:null;
+  const balloonAmt=balloonEnabled&&lastRow&&lastRow.isBalloon?lastRow.principal:0;
   return{schedule,basePayment,balloonAmt,totalPaid,r,n};
 }
 

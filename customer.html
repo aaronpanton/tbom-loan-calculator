@@ -567,7 +567,9 @@ function render(params){
   const totalInterest=schedule.reduce((s,row)=>s+row.interest,0);
   const totalPaid=schedule.reduce((s,row)=>s+row.payment,0);
   const effRate=r*ppy*100;
-  const balloonAmt=balloonEnabled&&schedule.length>0?schedule[schedule.length-1].balance:0;
+  // balloonAmt = principal on the balloon row = remaining balance just before payoff
+  const lastRow=schedule.length>0?schedule[schedule.length-1]:null;
+  const balloonAmt=balloonEnabled&&lastRow&&lastRow.isBalloon?lastRow.principal:0;
 
   // Key metrics
   document.getElementById('mPayment').textContent=fmtC(basePayment);
@@ -602,10 +604,21 @@ function render(params){
 
   // Balloon box
   const bBox=document.getElementById('balloonBox');
-  if(balloonEnabled){
+  if(balloonEnabled&&balloonAmt>0){
     bBox.style.display='flex';
-    document.getElementById('balloonBoxTitle').textContent='Balloon Payment Due at Period '+balloonPeriods+' (Year '+balloonYears+')';
-    document.getElementById('balloonBoxBody').textContent='Payments are calculated based on a '+Math.round(termMonths/12)+'-year amortization schedule. The remaining principal balance of '+fmtC(balloonAmt)+' will be due in full at month '+balloonYears*12+'.';
+    // Resolve balloon due date label from maturity date or compute from first payment
+    const balloonMatDateDisp=params.balloonMatDate||'';
+    let balloonDueLabel='Period '+balloonPeriods;
+    if(balloonMatDateDisp){
+      const bmd=new Date(balloonMatDateDisp+'T12:00:00');
+      balloonDueLabel=bmd.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+    } else if(firstPayDate){
+      const bdd=new Date(firstPayDate+'T12:00:00');
+      bdd.setMonth(bdd.getMonth()+balloonPeriods-1);
+      balloonDueLabel=bdd.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+    }
+    document.getElementById('balloonBoxTitle').textContent='Balloon Payment Due: '+balloonDueLabel;
+    document.getElementById('balloonBoxBody').textContent='Outstanding principal balance of '+fmtC(balloonAmt)+' will be due in full at the balloon maturity date.';
   } else { bBox.style.display='none'; }
 
   // Extra payment box
