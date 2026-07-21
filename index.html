@@ -601,16 +601,17 @@ function buildAmort(principal,annualRate,termMonths,ppy,basis,extraEnabled,extra
   const dailyRate=basis==='consumer'?(annualRate/100/365):(annualRate/100/360);
   const moPerPeriod=Math.round(12/ppy);
 
-  // Odd-first-period payment adjustment (Laser Pro / US Rule)
-  // When origination to first payment exceeds a standard period, the base payment
-  // is adjusted upward by (1+r)^(actual_days/standard_days - 1)
+  // Odd-first-period payment adjustment (Laser Pro U.S. Rule)
+  // LP uses simple interest for extra days beyond the standard period:
+  //   adj = base × (1 + (actual_days − std_days) × daily_rate)
+  // Commercial std_days = 30 (360/12), Consumer std_days = 365/12
   if(useActualDays){
     const origD=new Date(origDateStr+'T12:00:00');
     const fpD=new Date(firstPayDateStr+'T12:00:00');
     const actualDays=Math.round((fpD-origD)/(1000*60*60*24));
-    const stdDays=(basis==='consumer'?365:365)/ppy; // standard period in days = 365/ppy
-    if(actualDays>stdDays*1.05){ // only adjust if meaningfully longer than standard period
-      const oddFactor=Math.pow(1+r, actualDays/stdDays - 1);
+    const stdDays=basis==='consumer'?365/ppy:360/ppy;
+    if(actualDays>stdDays*1.05){ // only adjust when first period is meaningfully longer
+      const oddFactor=1+(actualDays-stdDays)*dailyRate;
       basePayment=basePayment*oddFactor;
     }
   }

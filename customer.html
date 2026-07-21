@@ -405,14 +405,14 @@ function buildAmort(principal,annualRate,termMonths,ppy,basis,extraEnabled,extra
   const dailyRate=basis==='consumer'?(annualRate/100/365):(annualRate/100/360);
   const moPerPeriod=Math.round(12/ppy);
 
-  // Odd-first-period payment adjustment (Laser Pro / US Rule)
+  // Odd-first-period payment adjustment (Laser Pro U.S. Rule)
   if(useActualDays){
     const origD=new Date(origDateStr+'T12:00:00');
     const fpD=new Date(firstPayDateStr+'T12:00:00');
     const actualDays=Math.round((fpD-origD)/(1000*60*60*24));
-    const stdDays=365/ppy;
+    const stdDays=basis==='consumer'?365/ppy:360/ppy;
     if(actualDays>stdDays*1.05){
-      const oddFactor=Math.pow(1+r, actualDays/stdDays - 1);
+      const oddFactor=1+(actualDays-stdDays)*dailyRate;
       basePayment=basePayment*oddFactor;
     }
   }
